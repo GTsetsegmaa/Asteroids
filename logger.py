@@ -3,11 +3,11 @@ import json
 import math
 from datetime import datetime
 
-__all__ = ["log_state", "log_even"]
+__all__ = ["log_state", "log_event"]
 
 _FPS = 60
 _MAX_SECONDS = 16
-_SPRITE_SAMPLE_LIMIT = 10 # Maximum number of sprites to log per group
+_SPRITE_SAMPLE_LIMIT = 10  # Maximum number of sprites to log per group
 
 _frame_count = 0
 _state_log_initialized = False
@@ -18,22 +18,22 @@ _start_time = datetime.now()
 def log_state():
     global _frame_count, _state_log_initialized
 
-    # Stop logging after `_Max_SECONDS` seconds
+    # Stop logging after `_MAX_SECONDS` seconds
     if _frame_count > _FPS * _MAX_SECONDS:
         return
-    
-    # Take a sdnapshot approx. once per second
+
+    # Take a snapshot approx. once per second
     _frame_count += 1
     if _frame_count % _FPS != 0:
         return
-    
+
     now = datetime.now()
 
     frame = inspect.currentframe()
     if frame is None:
         return
 
-    frame_back = frame.f_back 
+    frame_back = frame.f_back
     if frame_back is None:
         return
 
@@ -52,7 +52,7 @@ def log_state():
             for i, sprite in enumerate(value):
                 if i >= _SPRITE_SAMPLE_LIMIT:
                     break
-                
+
                 sprite_info = {"type": sprite.__class__.__name__}
 
                 if hasattr(sprite, "position"):
@@ -60,52 +60,76 @@ def log_state():
                         round(sprite.position.x, 2),
                         round(sprite.position.y, 2),
                     ]
-                
+
                 if hasattr(sprite, "velocity"):
-                    sprite_info["pos"] = [
-                        round(sprite.position.x, 2),
-                        round(sprite.position.y, 2),
+                    sprite_info["vel"] = [
+                        round(sprite.velocity.x, 2),
+                        round(sprite.velocity.y, 2),
                     ]
-                
+
                 if hasattr(sprite, "radius"):
                     sprite_info["rad"] = sprite.radius
 
                 if hasattr(sprite, "rotation"):
                     sprite_info["rot"] = round(sprite.rotation, 2)
-                
-                game_state[key] = sprite_info
 
-                entry = {
-                    "timestamp": now.strftime("%H:%M:%S.%f")[:-3],
-                    "elapsed_s": math.floor((now - _start_time).total_seconds()),
-                    "frame": _frame_count,
-                    "screen_size": screen_size,
-                    **game_state,
-                }
+                sprites_data.append(sprite_info)
 
-                # New log file each run
-                mode = "w" if not _state_log_initialized else "a"
-                with open("game_state.jsonl", mode) as f:
-                    f.write(json.dumps(entry) + "\n")
+            game_state[key] = {"count": len(value), "sprites": sprites_data}
 
-                _state_log_initialized = True
+        if len(game_state) == 0 and hasattr(value, "position"):
+            sprite_info = {"type": value.__class__.__name__}
 
-                
-                def log_event(event_type, **details):
-                    global _event_log_initialized
+            sprite_info["pos"] = [
+                round(value.position.x, 2),
+                round(value.position.y, 2),
+            ]
 
-                    now = datetime.now()
+            if hasattr(value, "velocity"):
+                sprite_info["vel"] = [
+                    round(value.velocity.x, 2),
+                    round(value.velocity.y, 2),
+                ]
 
-                    event = {
-                        "timestamp": now.strftime("%H:%M:$S.$f")[:-3],
-                        "elapsed_s": math.floor((now - _start_time).total_seconds()),
-                        "frame": _frame_count,
-                        "type": event_type,
-                        **detials,
-                    }
+            if hasattr(value, "radius"):
+                sprite_info["rad"] = value.radius
 
-                    mode = "w" if not _event_log_initialized else "a"
-                    with open("game_events.sjonl", mode) as f:
-                        f.write(json.dumps(event) + "\n")
+            if hasattr(value, "rotation"):
+                sprite_info["rot"] = round(value.rotation, 2)
 
-                    _event_log_initialized = True
+            game_state[key] = sprite_info
+
+    entry = {
+        "timestamp": now.strftime("%H:%M:%S.%f")[:-3],
+        "elapsed_s": math.floor((now - _start_time).total_seconds()),
+        "frame": _frame_count,
+        "screen_size": screen_size,
+        **game_state,
+    }
+
+    # New log file on each run
+    mode = "w" if not _state_log_initialized else "a"
+    with open("game_state.jsonl", mode) as f:
+        f.write(json.dumps(entry) + "\n")
+
+    _state_log_initialized = True
+
+
+def log_event(event_type, **details):
+    global _event_log_initialized
+
+    now = datetime.now()
+
+    event = {
+        "timestamp": now.strftime("%H:%M:%S.%f")[:-3],
+        "elapsed_s": math.floor((now - _start_time).total_seconds()),
+        "frame": _frame_count,
+        "type": event_type,
+        **details,
+    }
+
+    mode = "w" if not _event_log_initialized else "a"
+    with open("game_events.jsonl", mode) as f:
+        f.write(json.dumps(event) + "\n")
+
+    _event_log_initialized = True
